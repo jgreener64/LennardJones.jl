@@ -174,12 +174,14 @@ function simulate!(s, n_steps)
         update_coordinates!(s.universe.atoms, s.universe.velocities, a_t, s.timestep)
         update_accelerations!(a_t_dt, s.universe.atoms)
         update_velocities!(s.universe.velocities, a_t, a_t_dt, s.timestep)
-        pe = potential_energy(s.universe)
-        ke = kinetic_energy(s.universe.velocities)
-        push!(s.pes, pe)
-        push!(s.kes, ke)
-        push!(s.energies, pe+ke)
-        push!(s.temps, temperature(ke, n_atoms))
+        if i % 100 == 0
+            pe = potential_energy(s.universe)
+            ke = kinetic_energy(s.universe.velocities)
+            push!(s.pes, pe)
+            push!(s.kes, ke)
+            push!(s.energies, pe+ke)
+            push!(s.temps, temperature(ke, n_atoms))
+        end
         a_t = a_t_dt
         s.steps_made += 1
         #i%10000==0 && println(s.universe.atoms[1].coords, s.universe.velocities[1], a_t[1])
@@ -188,7 +190,7 @@ function simulate!(s, n_steps)
 end
 
 function plot_energy(simulation)
-    v = simulation.energies[1:100:end]
+    v = simulation.energies[1:10:end]
     return plot(collect(1:length(v)), v)
 end
 
