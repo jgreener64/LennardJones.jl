@@ -16,11 +16,13 @@ export
     temperature,
     coord_array,
     simulate!,
-    plot_energy
+    plot_energy,
+    plot_coords
 
 mutable struct Coordinates
     x::Float64
     y::Float64
+    z::Float64
 end
 
 struct Atom
@@ -31,6 +33,7 @@ end
 mutable struct Velocity
     x::Float64
     y::Float64
+    z::Float64
 end
 
 struct Universe
@@ -51,13 +54,14 @@ mutable struct Simulation
 end
 
 function Atom(id, box_size::Real)
-    return Atom(id, Coordinates(rand()*box_size, rand()*box_size))
+    return Atom(id, Coordinates(rand()*box_size, rand()*box_size, rand()*box_size))
 end
 
 function Velocity(starting_velocity)
+    θ = rand()*π
     ϕ = rand()*2π
     r = rand()*starting_velocity
-    return Velocity(r*cos(ϕ), r*sin(ϕ))
+    return Velocity(r*sin(θ)*cos(ϕ), r*sin(θ)*sin(ϕ), r*cos(θ))
 end
 
 function Simulation(n_atoms, box_size, starting_velocity, timestep, n_steps)
@@ -68,18 +72,23 @@ function Simulation(n_atoms, box_size, starting_velocity, timestep, n_steps)
 end
 
 function Base.show(io::IO, s::Simulation)
-    print(io, "Simulation of ", length(s.universe.atoms), " atoms in a box of size ", Int(round(s.universe.box_size, 0)), ": ", s.steps_made, "/", s.n_steps, " steps made (", round(100*s.steps_made/s.n_steps, 1), " %)")
+    print(io, "Simulation of ", length(s.universe.atoms),
+            " atoms in a box of size ", Int(round(s.universe.box_size, 0)),
+            ": ", s.steps_made, "/", s.n_steps, " steps made (",
+            round(100*s.steps_made/s.n_steps, 1), " %)")
 end
 
 mutable struct Acceleration
     x::Float64
     y::Float64
+    z::Float64
 end
 
 function update_coordinates!(atoms, velocities, accels, timestep)
     for (i, a) in enumerate(atoms)
         a.coords.x += velocities[i].x*timestep + 0.5*accels[i].x*timestep^2
         a.coords.y += velocities[i].y*timestep + 0.5*accels[i].y*timestep^2
+        a.coords.z += velocities[i].z*timestep + 0.5*accels[i].z*timestep^2
     end
     return atoms
 end
@@ -88,36 +97,43 @@ function update_velocities!(velocities, accels_t, accels_t_dt, timestep)
     for (i, v) in enumerate(velocities)
         v.x += 0.5*(accels_t[i].x+accels_t_dt[i].x)*timestep
         v.y += 0.5*(accels_t[i].y+accels_t_dt[i].y)*timestep
+        v.z += 0.5*(accels_t[i].z+accels_t_dt[i].z)*timestep
     end
     return velocities
 end
 
+sqdist(a1, a2) = (a2.coords.x-a1.coords.x)^2 + (a2.coords.y-a1.coords.y)^2 + (a2.coords.z-a1.coords.z)^2
+
 function lennardjones_potential(a1, a2)
-    r2 = (a2.coords.x-a1.coords.x)^2 + (a2.coords.y-a1.coords.y)^2
+    r2 = sqdist(a1, a2)
     return 4.0*(r2^-6 - r2^-3)
 end
 
 function force(a1, a2)
-    r2 = (a2.coords.x-a1.coords.x)^2 + (a2.coords.y-a1.coords.y)^2
+    r2 = sqdist(a1, a2)
     f = 48*(r2^-7 - 0.5*r2^-4)
-    return f*(a1.coords.x-a2.coords.x), f*(a1.coords.y-a2.coords.y)
+    return f*(a1.coords.x-a2.coords.x), f*(a1.coords.y-a2.coords.y), f*(a1.coords.z-a2.coords.z)
 end
 
 function update_accelerations!(accels, atoms)
     update_x = 0.0
     update_y = 0.0
+    update_z = 0.0
     for (i, a1) in enumerate(atoms)
         accel_x = 0.0
         accel_y = 0.0
+        accel_z = 0.0
         for a2 in atoms
             if a1.id != a2.id
-                update_x, update_y = force(a1, a2)
+                update_x, update_y, update_z = force(a1, a2)
                 accel_x += update_x
                 accel_y += update_y
+                accel_z += update_z
             end
         end
         accels[i].x = accel_x
         accels[i].y = accel_y
+        accels[i].z = accel_z
     end
     return accels
 end
@@ -125,7 +141,7 @@ end
 function kinetic_energy(velocities)
     ke = 0.0
     for v in velocities
-        ke += v.x^2 + v.y^2
+        ke += v.x^2 + v.y^2 + v.z^2
     end
     return 0.5*ke
 end
@@ -144,9 +160,9 @@ energy(universe) = kinetic_energy(universe.velocities) + potential_energy(univer
 
 temperature(ke, n_atoms) = (2*ke)/(3*n_atoms)
 
-coord_array(universe) = vcat([[a.coords.x a.coords.y] for a in universe.atoms]...)
+coord_array(universe) = vcat([[a.coords.x a.coords.y a.coords.z] for a in universe.atoms]...)
 
-empty_accelerations(n_atoms) = [Acceleration(0, 0) for i in 1:n_atoms]
+empty_accelerations(n_atoms) = [Acceleration(0.0, 0.0, 0.0) for i in 1:n_atoms]
 
 simulate!(s) = simulate!(s, s.n_steps-s.steps_made)
 
@@ -174,6 +190,13 @@ end
 function plot_energy(simulation)
     v = simulation.energies[1:100:end]
     return plot(collect(1:length(v)), v)
+end
+
+function plot_coords(coords...)
+    xs = hcat((i[:,1] for i in coords)...)
+    ys = hcat((i[:,2] for i in coords)...)
+    zs = hcat((i[:,3] for i in coords)...)
+    return scatter(xs, ys, zs)
 end
 
 end # LennardJones

@@ -15,7 +15,7 @@ using LennardJones
 using Plots
 
 # Reduced units
-n_atoms = 5
+n_atoms = 10
 box_size = 50.0
 starting_velocity = 0.0
 timestep = 0.01
@@ -36,5 +36,5 @@ println("Ending KE:   ", kinetic_energy(s.universe.velocities))
 println("Ending T:    ", temperature(kinetic_energy(s.universe.velocities), n_atoms))
 
 # View starting and ending coordinates
-scatter([coords_start[:,1] coords_end[:,1]], [coords_start[:,2] coords_end[:,2]])
+plot_coords(coords_start, coords_end)
 ```
