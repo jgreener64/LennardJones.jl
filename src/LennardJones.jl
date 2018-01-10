@@ -84,13 +84,27 @@ mutable struct Acceleration
     z::Float64
 end
 
-function update_coordinates!(atoms, velocities, accels, timestep)
+function update_coordinates!(atoms, velocities, accels, timestep, box_size)
     for (i, a) in enumerate(atoms)
         a.coords.x += velocities[i].x*timestep + 0.5*accels[i].x*timestep^2
         a.coords.y += velocities[i].y*timestep + 0.5*accels[i].y*timestep^2
         a.coords.z += velocities[i].z*timestep + 0.5*accels[i].z*timestep^2
+        a.coords.x = bound!(a.coords.x, box_size)
+        a.coords.y = bound!(a.coords.y, box_size)
+        a.coords.z = bound!(a.coords.z, box_size)
     end
     return atoms
+end
+
+function bound!(coord, box_size)
+    if coord <= 0.0
+        coord += box_size
+        return bound!(coord, box_size)
+    elseif coord > box_size
+        coord -= box_size
+        return bound!(coord, box_size)
+    end
+    return coord
 end
 
 function update_velocities!(velocities, accels_t, accels_t_dt, timestep)
@@ -102,20 +116,32 @@ function update_velocities!(velocities, accels_t, accels_t_dt, timestep)
     return velocities
 end
 
-sqdist(a1, a2) = (a2.coords.x-a1.coords.x)^2 + (a2.coords.y-a1.coords.y)^2 + (a2.coords.z-a1.coords.z)^2
+function sqdist(a1, a2, box_size)
+    return bounddist(a1.coords.x, a2.coords.x, box_size)^2 +
+        bounddist(a1.coords.y, a2.coords.y, box_size)^2 +
+        bounddist(a1.coords.z, a2.coords.z, box_size)^2
+end
 
-function lennardjones_potential(a1, a2)
-    r2 = sqdist(a1, a2)
+function bounddist(x1, x2, box_size)
+    if x1 < x2
+        return min(x2-x1, x1-x2+box_size)
+    else
+        return min(x1-x2, x2-x1+box_size)
+    end
+end
+
+function lennardjones_potential(a1, a2, box_size)
+    r2 = sqdist(a1, a2, box_size)
     return 4.0*(r2^-6 - r2^-3)
 end
 
-function force(a1, a2)
-    r2 = sqdist(a1, a2)
+function force(a1, a2, box_size)
+    r2 = sqdist(a1, a2, box_size)
     f = 48*(r2^-7 - 0.5*r2^-4)
     return f*(a1.coords.x-a2.coords.x), f*(a1.coords.y-a2.coords.y), f*(a1.coords.z-a2.coords.z)
 end
 
-function update_accelerations!(accels, atoms)
+function update_accelerations!(accels, atoms, box_size)
     update_x = 0.0
     update_y = 0.0
     update_z = 0.0
@@ -125,7 +151,7 @@ function update_accelerations!(accels, atoms)
         accel_z = 0.0
         for a2 in atoms
             if a1.id != a2.id
-                update_x, update_y, update_z = force(a1, a2)
+                update_x, update_y, update_z = force(a1, a2, box_size)
                 accel_x += update_x
                 accel_y += update_y
                 accel_z += update_z
@@ -150,7 +176,7 @@ function potential_energy(universe)
     pe = 0.0
     for (i, a1) in enumerate(universe.atoms)
         for j in 1:i-1
-            pe += lennardjones_potential(a1, universe.atoms[j])
+            pe += lennardjones_potential(a1, universe.atoms[j], universe.box_size)
         end
     end
     return pe
@@ -168,11 +194,11 @@ simulate!(s) = simulate!(s, s.n_steps-s.steps_made)
 
 function simulate!(s, n_steps)
     n_atoms = length(s.universe.atoms)
-    a_t = update_accelerations!(empty_accelerations(n_atoms), s.universe.atoms)
+    a_t = update_accelerations!(empty_accelerations(n_atoms), s.universe.atoms, s.universe.box_size)
     a_t_dt = empty_accelerations(n_atoms)
     @showprogress for i in 1:n_steps
-        update_coordinates!(s.universe.atoms, s.universe.velocities, a_t, s.timestep)
-        update_accelerations!(a_t_dt, s.universe.atoms)
+        update_coordinates!(s.universe.atoms, s.universe.velocities, a_t, s.timestep, s.universe.box_size)
+        update_accelerations!(a_t_dt, s.universe.atoms, s.universe.box_size)
         update_velocities!(s.universe.velocities, a_t, a_t_dt, s.timestep)
         if i % 100 == 0
             pe = potential_energy(s.universe)
