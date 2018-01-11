@@ -141,25 +141,17 @@ function force(a1, a2, box_size)
     return f*(a1.coords.x-a2.coords.x), f*(a1.coords.y-a2.coords.y), f*(a1.coords.z-a2.coords.z)
 end
 
+reduceaccels(x, y) = (x[1]+y[1], x[2]+y[2], x[3]+y[3])
+
 function update_accelerations!(accels, atoms, box_size)
-    update_x = 0.0
-    update_y = 0.0
-    update_z = 0.0
     for (i, a1) in enumerate(atoms)
-        accel_x = 0.0
-        accel_y = 0.0
-        accel_z = 0.0
-        for a2 in atoms
+        accels[i].x, accels[i].y, accels[i].z = @parallel (reduceaccels) for a2 in atoms
             if a1.id != a2.id
-                update_x, update_y, update_z = force(a1, a2, box_size)
-                accel_x += update_x
-                accel_y += update_y
-                accel_z += update_z
+                force(a1, a2, box_size)
+            else
+                (0.0, 0.0, 0.0)
             end
         end
-        accels[i].x = accel_x
-        accels[i].y = accel_y
-        accels[i].z = accel_z
     end
     return accels
 end
