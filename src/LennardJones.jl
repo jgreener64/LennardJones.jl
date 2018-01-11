@@ -215,16 +215,16 @@ function simulate!(s, n_steps)
     return s
 end
 
-function plot_energy(simulation)
+function plot_energy(simulation; kwargs...)
     v = simulation.energies[1:10:end]
-    return plot(collect(1:length(v)), v)
+    return plot(collect(1:length(v)), v; kwargs...)
 end
 
-function plot_coords(coords...)
+function plot_coords(coords...; kwargs...)
     xs = hcat((i[:,1] for i in coords)...)
     ys = hcat((i[:,2] for i in coords)...)
     zs = hcat((i[:,3] for i in coords)...)
-    return scatter(xs, ys, zs)
+    return scatter(xs, ys, zs; kwargs...)
 end
 
 end # LennardJones

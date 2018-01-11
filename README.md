@@ -36,5 +36,5 @@ println("Ending KE:   ", kinetic_energy(s.universe.velocities))
 println("Ending T:    ", temperature(kinetic_energy(s.universe.velocities), n_atoms))
 
 # View starting and ending coordinates
-plot_coords(coords_start, coords_end)
+plot_coords(coords_start, coords_end, labels=["start", "end"])
 ```
