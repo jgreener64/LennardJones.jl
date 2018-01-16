@@ -19,6 +19,8 @@ export
     plot_energy,
     plot_coords
 
+const sqdist_cutoff = 20.0^2
+
 mutable struct Coordinates
     x::Float64
     y::Float64
@@ -137,8 +139,12 @@ end
 
 function force(a1, a2, box_size)
     r2 = sqdist(a1, a2, box_size)
-    f = 48*(r2^-7 - 0.5*r2^-4)
-    return f*(a1.coords.x-a2.coords.x), f*(a1.coords.y-a2.coords.y), f*(a1.coords.z-a2.coords.z)
+    if r2 < sqdist_cutoff
+        f = 48*(r2^-7 - 0.5*r2^-4)
+        return f*(a1.coords.x-a2.coords.x), f*(a1.coords.y-a2.coords.y), f*(a1.coords.z-a2.coords.z)
+    else
+        return 0.0, 0.0, 0.0
+    end
 end
 
 function update_accelerations!(accels, atoms, box_size)
